@@ -9,6 +9,10 @@ body {
 
 .container {
     margin-top: 50px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0 15px;
 }
 
 h1 {
@@ -17,6 +21,10 @@ h1 {
 
 form {
     margin: 20px 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 input {
@@ -26,13 +34,16 @@ input {
     border-radius: 5px;
 }
 
-button {
+select, button {
     padding: 10px 15px;
     border: none;
-    background: #3498db;
-    color: white;
     border-radius: 5px;
     cursor: pointer;
+}
+
+button {
+    background: #3498db;
+    color: white;
 }
 
 button:hover {
@@ -46,9 +57,69 @@ button:hover {
     width: 250px;
     border-radius: 10px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    text-align: center;
 }
 
+/* Forecast container - 2 rows grid */
+.forecast-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-rows: repeat(2, auto);
+    gap: 20px;
+    justify-items: center;
+    margin-bottom: 40px;
+}
+
+.forecast-day {
+    background: #e0f7fa;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    width: 120px;
+    transition: transform 0.2s;
+}
+
+.forecast-day:hover {
+    transform: scale(1.1);
+}
+
+.forecast-day img {
+    width: 80px;
+    height: 80px;
+}
+
+/* Chart styling */
 canvas {
-    max-width: 800px;
+    width: 100% !important;
+    max-width: 1000px;
+    height: 500px !important;
     margin: 30px auto;
+    display: block;
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px) {
+    .weather-box {
+        width: 90%;
+    }
+    
+    .forecast-container {
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+        grid-template-rows: repeat(2, auto);
+        gap: 15px;
+    }
+    
+    .forecast-day {
+        width: 90px;
+        padding: 10px;
+    }
+    
+    .forecast-day img {
+        width: 60px;
+        height: 60px;
+    }
+    
+    canvas {
+        height: 350px !important;
+    }
 }
