@@ -111,7 +111,7 @@ if ($forecastData && isset($forecastData['list']) && is_array($forecastData['lis
 
         <script>
         const forecastData = <?php echo json_encode($forecastData); ?>;
-        const unit = '<?php echo $unit; ?>';
+        const unit = <?php echo json_encode($unit); ?>;
         let labels = [];
         let temps = [];
 
