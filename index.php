@@ -1,10 +1,12 @@
 <?php
 
 include_once('./hidden.php');
+include_once('./sanitize.php');
 
 $apiKey = Hidden::API;  // Hardcoded API key (Fixed by adding hidden file.)
 
 $city = isset($_GET['city']) ? $_GET['city'] : "New York"; // No sanitization on input
+$city = sanitize($city); // Added sanitization to user input.
 
 $currentUrl = "https://api.openweathermap.org/data/2.5/weather?q={$city}&appid={$apiKey}&units=imperial";
 $forecastUrl = "https://api.openweathermap.org/data/2.5/forecast?q={$city}&appid={$apiKey}&units=imperial";
