@@ -5,37 +5,14 @@ include_once('./sanitize.php');
 $apiKey = Hidden::API;
 
 // Sanitize user input
-
-if (isset($_GET['city'])) {
-    // Only allow letters, spaces, hyphens
-    $city = preg_replace("/[^a-zA-Z\s\-]/", "", $_GET['city']);
-    $city = trim($city);
-    if ($city === "") {
-        $city = "New York"; // fallback
-    }
-} else {
-    $city = "New York";
-}
-
-$unit = isset($_GET['unit']) && $_GET['unit'] === 'metric' ? 'metric' : 'imperial';
+$city = isset($_GET['city']) ? sanitizeCity($_GET['city']) : "New York";
+$unit = isset($_GET['unit']) ? sanitizeUnit($_GET['unit']) : "imperial";
 
 // Build API URLs
-
 $currentUrl = "https://api.openweathermap.org/data/2.5/weather?q={$city}&appid={$apiKey}&units={$unit}";
 $forecastUrl = "https://api.openweathermap.org/data/2.5/forecast?q={$city}&appid={$apiKey}&units={$unit}";
 
-// Validate URL host to prevent SSRF
-
-function safeFileGetContents($url) {
-    $parsed = parse_url($url);
-    if (!isset($parsed['host']) || $parsed['host'] !== 'api.openweathermap.org') {
-        return false;
-    }
-    return @file_get_contents($url);
-}
-
-// Fetch and decode JSON safely
-
+// Fetch data safely
 $currentJson = safeFileGetContents($currentUrl);
 $forecastJson = safeFileGetContents($forecastUrl);
 
@@ -43,7 +20,6 @@ $currentData = $currentJson ? json_decode($currentJson, true) : null;
 $forecastData = $forecastJson ? json_decode($forecastJson, true) : null;
 
 // Validate API responses
-
 if (!is_array($currentData) || !isset($currentData['cod']) || $currentData['cod'] != 200) {
     $currentData = null;
 }
@@ -53,15 +29,13 @@ if (!is_array($forecastData) || !isset($forecastData['cod']) || $forecastData['c
 }
 
 // Aggregate daily forecast safely
-
 $dailyForecast = [];
 if ($forecastData && isset($forecastData['list']) && is_array($forecastData['list'])) {
     foreach ($forecastData['list'] as $item) {
         $date = substr($item['dt_txt'], 0, 10);
-
-        $temp_min = isset($item['main']['temp_min']) ? floatval($item['main']['temp_min']) : null;
-        $temp_max = isset($item['main']['temp_max']) ? floatval($item['main']['temp_max']) : null;
-        $icon = isset($item['weather'][0]['icon']) ? $item['weather'][0]['icon'] : '';
+        $temp_min = safeFloat($item['main']['temp_min'] ?? null);
+        $temp_max = safeFloat($item['main']['temp_max'] ?? null);
+        $icon = $item['weather'][0]['icon'] ?? '';
 
         if (!isset($dailyForecast[$date])) {
             $dailyForecast[$date] = [
@@ -130,48 +104,50 @@ if ($forecastData && isset($forecastData['list']) && is_array($forecastData['lis
         </div>
     <?php endif; ?>
 
-    <div class="chart-container">
-        <canvas id="weatherChart"></canvas>
-    </div>
+    <?php if ($forecastData && isset($forecastData['list']) && !empty($forecastData['list'])): ?>
+        <div class="chart-container">
+            <canvas id="weatherChart"></canvas>
+        </div>
+
+        <script>
+        const forecastData = <?php echo json_encode($forecastData); ?>;
+        const unit = '<?php echo $unit; ?>';
+        let labels = [];
+        let temps = [];
+
+        forecastData.list.forEach(item => {
+            if(item.main && item.main.temp !== undefined){
+                labels.push(item.dt_txt);
+                temps.push(item.main.temp);
+            }
+        });
+
+        const ctx = document.getElementById('weatherChart').getContext('2d');
+
+        const weatherChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Temperature (°' + (unit==='imperial'?'F':'C') + ')',
+                    data: temps,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { ticks: { maxTicksLimit: 10 } }
+                }
+            }
+        });
+        </script>
+    <?php endif; ?>
 </div>
-
-<script>
-const forecastData = <?php echo json_encode($forecastData ?? []); ?>;
-const unit = '<?php echo $unit; ?>';
-let labels = [];
-let temps = [];
-
-if (forecastData && forecastData.list) {
-    forecastData.list.forEach(item => {
-        labels.push(item.dt_txt);
-        temps.push(item.main?.temp ?? 0);
-    });
-}
-
-const ctx = document.getElementById('weatherChart').getContext('2d');
-
-const weatherChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: labels,
-        datasets: [{
-            label: 'Temperature (°' + (unit==='imperial'?'F':'C') + ')',
-            data: temps,
-            borderColor: '#3498db',
-            backgroundColor: 'rgba(52, 152, 219, 0.2)',
-            fill: true,
-            tension: 0.3
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-            x: { ticks: { maxTicksLimit: 10 } }
-        }
-    }
-});
-</script>
 
 </body>
 </html>
