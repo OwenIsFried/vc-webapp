@@ -5,7 +5,7 @@ include_once('./sanitize.php');
 $apiKey = Hidden::API;
 
 // Sanitize user input
-$city = isset($_GET['city']) ? sanitizeCity($_GET['city']) : "New York";
+$city = isset($_GET['city']) ? sanitizeCity($_GET['city']) : "Williamsport";
 $unit = isset($_GET['unit']) ? sanitizeUnit($_GET['unit']) : "imperial";
 
 // Build API URLs
