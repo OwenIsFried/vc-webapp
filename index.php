@@ -1,6 +1,8 @@
 <?php
 
-$apiKey = "API_KEY";  // Hardcoded API key
+include_once('./hidden.php');
+
+$apiKey = Hidden::API;  // Hardcoded API key (Fixed by adding hidden file.)
 
 $city = isset($_GET['city']) ? $_GET['city'] : "New York"; // No sanitization on input
 
