@@ -4,29 +4,51 @@ include_once('./sanitize.php');
 
 $apiKey = Hidden::API;
 
+// Sanitize user input
 $city = isset($_GET['city']) ? sanitize($_GET['city']) : "New York";
 $unit = isset($_GET['unit']) && $_GET['unit'] === 'metric' ? 'metric' : 'imperial';
 
+// Build API URLs
 $currentUrl = "https://api.openweathermap.org/data/2.5/weather?q={$city}&appid={$apiKey}&units={$unit}";
 $forecastUrl = "https://api.openweathermap.org/data/2.5/forecast?q={$city}&appid={$apiKey}&units={$unit}";
 
-$currentData = json_decode(file_get_contents($currentUrl), true);
-$forecastData = json_decode(file_get_contents($forecastUrl), true);
+// Fetch and decode JSON safely
+$currentJson = @file_get_contents($currentUrl);
+$forecastJson = @file_get_contents($forecastUrl);
 
-// Aggregate daily forecast
+$currentData = $currentJson ? json_decode($currentJson, true) : null;
+$forecastData = $forecastJson ? json_decode($forecastJson, true) : null;
+
+// Validate current weather
+if (!is_array($currentData) || !isset($currentData['cod']) || $currentData['cod'] != 200) {
+    $currentData = null;
+}
+
+// Validate forecast data
+if (!is_array($forecastData) || !isset($forecastData['cod']) || $forecastData['cod'] != "200") {
+    $forecastData = null;
+}
+
+// Aggregate daily forecast safely
 $dailyForecast = [];
-if ($forecastData && $forecastData['cod'] == "200") {
+if ($forecastData && isset($forecastData['list']) && is_array($forecastData['list'])) {
     foreach ($forecastData['list'] as $item) {
         $date = substr($item['dt_txt'], 0, 10);
+
+        // Make sure necessary fields exist
+        $temp_min = isset($item['main']['temp_min']) ? floatval($item['main']['temp_min']) : null;
+        $temp_max = isset($item['main']['temp_max']) ? floatval($item['main']['temp_max']) : null;
+        $icon = isset($item['weather'][0]['icon']) ? $item['weather'][0]['icon'] : '';
+
         if (!isset($dailyForecast[$date])) {
             $dailyForecast[$date] = [
-                'min' => $item['main']['temp_min'],
-                'max' => $item['main']['temp_max'],
-                'icon' => $item['weather'][0]['icon']
+                'min' => $temp_min,
+                'max' => $temp_max,
+                'icon' => $icon
             ];
         } else {
-            $dailyForecast[$date]['min'] = min($dailyForecast[$date]['min'], $item['main']['temp_min']);
-            $dailyForecast[$date]['max'] = max($dailyForecast[$date]['max'], $item['main']['temp_max']);
+            $dailyForecast[$date]['min'] = min($dailyForecast[$date]['min'], $temp_min);
+            $dailyForecast[$date]['max'] = max($dailyForecast[$date]['max'], $temp_max);
         }
     }
 }
@@ -54,18 +76,20 @@ if ($forecastData && $forecastData['cod'] == "200") {
         <button type="submit">Search</button>
     </form>
 
-    <?php if ($currentData && $currentData['cod'] == 200): ?>
+    <?php if ($currentData): ?>
         <div class="weather-box">
-            <h2><?php echo $currentData['name']; ?></h2>
-            <img src="https://openweathermap.org/img/wn/<?php echo $currentData['weather'][0]['icon']; ?>@2x.png" 
-                 alt="<?php echo $currentData['weather'][0]['description']; ?>">
-            <p>🌡 Temp: <span id="currentTemp"><?php echo $currentData['main']['temp']; ?></span>°<?php echo $unit==='imperial'?'F':'C'; ?></p>
-            <p>💧 Humidity: <?php echo $currentData['main']['humidity']; ?>%</p>
-            <p>🌬 Wind: <?php echo $currentData['wind']['speed']; ?> <?php echo $unit==='imperial'?'mph':'m/s'; ?></p>
-            <p>📝 Condition: <?php echo ucfirst($currentData['weather'][0]['description']); ?></p>
+            <h2><?php echo htmlspecialchars($currentData['name'] ?? 'Unknown'); ?></h2>
+            <?php if (isset($currentData['weather'][0]['icon'])): ?>
+                <img src="https://openweathermap.org/img/wn/<?php echo $currentData['weather'][0]['icon']; ?>@2x.png"
+                     alt="<?php echo htmlspecialchars($currentData['weather'][0]['description'] ?? ''); ?>">
+            <?php endif; ?>
+            <p>🌡 Temp: <span id="currentTemp"><?php echo floatval($currentData['main']['temp'] ?? 0); ?></span>°<?php echo $unit==='imperial'?'F':'C'; ?></p>
+            <p>💧 Humidity: <?php echo intval($currentData['main']['humidity'] ?? 0); ?>%</p>
+            <p>🌬 Wind: <?php echo floatval($currentData['wind']['speed'] ?? 0); ?> <?php echo $unit==='imperial'?'mph':'m/s'; ?></p>
+            <p>📝 Condition: <?php echo ucfirst(htmlspecialchars($currentData['weather'][0]['description'] ?? '')); ?></p>
         </div>
     <?php else: ?>
-        <p>City not found.</p>
+        <p>City not found or API error.</p>
     <?php endif; ?>
 
     <?php if (!empty($dailyForecast)): ?>
@@ -73,27 +97,33 @@ if ($forecastData && $forecastData['cod'] == "200") {
         <div class="forecast-container">
             <?php foreach ($dailyForecast as $date => $data): ?>
                 <div class="forecast-day">
-                    <p><?php echo date("D, M j", strtotime($date)); ?></p>
-                    <img src="https://openweathermap.org/img/wn/<?php echo $data['icon']; ?>@2x.png" alt="Weather icon">
-                    <p>🌡 <?php echo $data['min']; ?>° - <?php echo $data['max']; ?>°</p>
+                    <p><?php echo htmlspecialchars(date("D, M j", strtotime($date))); ?></p>
+                    <?php if (!empty($data['icon'])): ?>
+                        <img src="https://openweathermap.org/img/wn/<?php echo $data['icon']; ?>@4x.png" alt="Weather icon">
+                    <?php endif; ?>
+                    <p>🌡 <?php echo floatval($data['min']); ?>° - <?php echo floatval($data['max']); ?>°</p>
                 </div>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
 
-    <canvas id="weatherChart"></canvas>
+    <div class="chart-container">
+        <canvas id="weatherChart"></canvas>
+    </div>
 </div>
 
 <script>
-const forecastData = <?php echo json_encode($forecastData); ?>;
+const forecastData = <?php echo json_encode($forecastData ?? []); ?>;
 const unit = '<?php echo $unit; ?>';
 let labels = [];
 let temps = [];
 
-forecastData.list.forEach(item => {
-    labels.push(item.dt_txt);
-    temps.push(item.main.temp);
-});
+if (forecastData && forecastData.list) {
+    forecastData.list.forEach(item => {
+        labels.push(item.dt_txt);
+        temps.push(item.main?.temp ?? 0);
+    });
+}
 
 const ctx = document.getElementById('weatherChart').getContext('2d');
 
@@ -112,6 +142,7 @@ const weatherChart = new Chart(ctx, {
     },
     options: {
         responsive: true,
+        maintainAspectRatio: false,
         scales: {
             x: { ticks: { maxTicksLimit: 10 } }
         }
