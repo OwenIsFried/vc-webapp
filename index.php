@@ -5,37 +5,60 @@ include_once('./sanitize.php');
 $apiKey = Hidden::API;
 
 // Sanitize user input
-$city = isset($_GET['city']) ? sanitize($_GET['city']) : "New York";
+
+if (isset($_GET['city'])) {
+    // Only allow letters, spaces, hyphens
+    $city = preg_replace("/[^a-zA-Z\s\-]/", "", $_GET['city']);
+    $city = trim($city);
+    if ($city === "") {
+        $city = "New York"; // fallback
+    }
+} else {
+    $city = "New York";
+}
+
 $unit = isset($_GET['unit']) && $_GET['unit'] === 'metric' ? 'metric' : 'imperial';
 
 // Build API URLs
+
 $currentUrl = "https://api.openweathermap.org/data/2.5/weather?q={$city}&appid={$apiKey}&units={$unit}";
 $forecastUrl = "https://api.openweathermap.org/data/2.5/forecast?q={$city}&appid={$apiKey}&units={$unit}";
 
+// Validate URL host to prevent SSRF
+
+function safeFileGetContents($url) {
+    $parsed = parse_url($url);
+    if (!isset($parsed['host']) || $parsed['host'] !== 'api.openweathermap.org') {
+        return false;
+    }
+    return @file_get_contents($url);
+}
+
 // Fetch and decode JSON safely
-$currentJson = @file_get_contents($currentUrl);
-$forecastJson = @file_get_contents($forecastUrl);
+
+$currentJson = safeFileGetContents($currentUrl);
+$forecastJson = safeFileGetContents($forecastUrl);
 
 $currentData = $currentJson ? json_decode($currentJson, true) : null;
 $forecastData = $forecastJson ? json_decode($forecastJson, true) : null;
 
-// Validate current weather
+// Validate API responses
+
 if (!is_array($currentData) || !isset($currentData['cod']) || $currentData['cod'] != 200) {
     $currentData = null;
 }
 
-// Validate forecast data
 if (!is_array($forecastData) || !isset($forecastData['cod']) || $forecastData['cod'] != "200") {
     $forecastData = null;
 }
 
 // Aggregate daily forecast safely
+
 $dailyForecast = [];
 if ($forecastData && isset($forecastData['list']) && is_array($forecastData['list'])) {
     foreach ($forecastData['list'] as $item) {
         $date = substr($item['dt_txt'], 0, 10);
 
-        // Make sure necessary fields exist
         $temp_min = isset($item['main']['temp_min']) ? floatval($item['main']['temp_min']) : null;
         $temp_max = isset($item['main']['temp_max']) ? floatval($item['main']['temp_max']) : null;
         $icon = isset($item['weather'][0]['icon']) ? $item['weather'][0]['icon'] : '';
